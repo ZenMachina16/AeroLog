@@ -2,13 +2,21 @@
 #include <sys/mman.h>
 #include <fcntl.h>
 #include <unistd.h>
-#include <cstring>
+#include <atomic> // Essential for thread-safe counters
 
-// Unique name for the shared memory segment
 #define SHM_NAME "/aerolog_buffer"
-#define SHM_SIZE 4096 // Start with 4KB for testing
+#define RING_SIZE 1024 // Power of 2 is best for performance
 
-struct SharedMessage {
-    char text[256];
-    bool ready; // A simple flag to signal data is written
+// Define what a single log entry looks like
+struct LogEntry {
+    uint64_t timestamp;
+    int event_id;
+    double value;
+};
+
+// The Shared Memory Layout
+struct SharedBuffer {
+    std::atomic<uint64_t> head; // Managed by Consumer (Sidecar)
+    std::atomic<uint64_t> tail; // Managed by Producer (App)
+    LogEntry entries[RING_SIZE];
 };

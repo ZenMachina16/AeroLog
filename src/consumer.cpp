@@ -1,20 +1,28 @@
 #include "shm_shared.hpp"
 
 int main() {
-    // 1. Open the existing shared memory
     int fd = shm_open(SHM_NAME, O_RDONLY, 0666);
+    SharedBuffer* ring = (SharedBuffer*)mmap(0, sizeof(SharedBuffer), PROT_READ, MAP_SHARED, fd, 0);
 
-    // 2. Map it
-    SharedMessage* msg = (SharedMessage*)mmap(0, SHM_SIZE, PROT_READ, MAP_SHARED, fd, 0);
+    uint64_t processed_count = 0;
 
-    // 3. Wait for the flag and read
-    while (!msg->ready) { 
-        usleep(1000); // Wait 1ms
+    while (processed_count < 10000) {
+        uint64_t current_head = ring->head.load(std::memory_order_relaxed);
+        
+        // 1. Check if there is new data (is Tail ahead of Head?)
+        if (current_head != ring->tail.load(std::memory_order_acquire)) {
+            
+            // 2. Read the data
+            LogEntry& entry = ring->entries[current_head];
+            // In Phase 3, we will write this to a file. For now, just count it.
+            processed_count++;
+
+            // 3. Move the head forward to clear the slot
+            ring->head.store((current_head + 1) % RING_SIZE, std::memory_order_release);
+        }
     }
 
-    std::cout << "Sidecar received: " << msg->text << std::endl;
-
-    // 4. Cleanup
-    shm_unlink(SHM_NAME); 
+    std::cout << "Sidecar successfully consumed " << processed_count << " logs." << std::endl;
+    shm_unlink(SHM_NAME);
     return 0;
 }

@@ -1,147 +1,30 @@
-// producer.cpp
 #include "shm_shared.hpp"
+#include <chrono>
 
 int main() {
-    // 1. Create the shared memory object
     int fd = shm_open(SHM_NAME, O_CREAT | O_RDWR, 0666);
-    ftruncate(fd, SHM_SIZE);
+    ftruncate(fd, sizeof(SharedBuffer));
+    SharedBuffer* ring = (SharedBuffer*)mmap(0, sizeof(SharedBuffer), PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
 
-    // 2. Map the object into memory
-    SharedMessage* msg = (SharedMessage*)mmap(0, SHM_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+    for (int i = 0; i < 10000; ++i) {
+        uint64_t current_tail = ring->tail.load(std::memory_order_relaxed);
+        uint64_t next_tail = (current_tail + 1) % RING_SIZE;
 
-    // 3. Write data
-    strcpy(msg->text, "Telemetry Data Point #1");
-    msg->ready = true;
+        // 1. Check if buffer is full (Don't overwrite unread data)
+        while (next_tail == ring->head.load(std::memory_order_acquire)) {
+            // Buffer is full, wait for consumer to clear space
+        }
 
-    std::cout << "Data written to shared memory." << std::endl;
+        // 2. Write the data to the "Tail" slot
+        LogEntry& entry = ring->entries[current_tail];
+        entry.event_id = i;
+        entry.value = i * 1.5;
+        entry.timestamp = std::chrono::system_clock::now().time_since_epoch().count();
+
+        // 3. Move the tail forward to "publish" the data
+        ring->tail.store(next_tail, std::memory_order_release);
+    }
+
+    std::cout << "Producer finished sending 10,000 logs." << std::endl;
     return 0;
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
- 
