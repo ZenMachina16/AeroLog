@@ -1,10 +1,29 @@
 #include "shm_shared.hpp"
 #include <chrono>
+#include <cstdio>
+#include <cstdlib>
 
 int main() {
     int fd = shm_open(SHM_NAME, O_CREAT | O_RDWR, 0666);
-    ftruncate(fd, sizeof(SharedBuffer));
+    if (fd == -1) {
+        perror("shm_open failed");
+        return 1;
+    }
+
+    if (ftruncate(fd, sizeof(SharedBuffer)) == -1) {
+        perror("ftruncate failed");
+        return 1;
+    }
+
     SharedBuffer* ring = (SharedBuffer*)mmap(0, sizeof(SharedBuffer), PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+    if (ring == MAP_FAILED) {
+        perror("mmap failed");
+        return 1;
+    }
+
+    // Initialize shared memory to a clean state
+    ring->head.store(0);
+    ring->tail.store(0);
 
     for (int i = 0; i < 10000; ++i) {
         uint64_t current_tail = ring->tail.load(std::memory_order_relaxed);
