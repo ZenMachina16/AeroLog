@@ -1,0 +1,6 @@
+trades.csv
+src/consumer
+src/producer
+*.alog
+__pycache__/
+*.o

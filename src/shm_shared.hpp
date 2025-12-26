@@ -5,7 +5,7 @@
 #include <atomic> // Essential for thread-safe counters
 
 #define SHM_NAME "/aerolog_buffer"
-#define RING_SIZE 1024 // Power of 2 is best for performance
+#define RING_SIZE 1048576// Power of 2 is best for performance
 
 // Define what a single log entry looks like
 struct LogEntry {

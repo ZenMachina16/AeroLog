@@ -1,42 +1,60 @@
 #include "shm_shared.hpp"
-#include <cstdio> // For FILE, fwrite
+#include <cstdio>
+#include <vector>
+
+// Configuration
+const int BATCH_SIZE = 1000; // Write to disk only after collecting 1000 logs
 
 int main() {
-    // 1. Connect to shared memory
     int fd = shm_open(SHM_NAME, O_RDWR, 0666);
-    if (fd == -1) {
-        perror("shm_open failed (Did you run producer first?)");
-        return 1;
-    }
+    if (fd == -1) { perror("shm_open failed"); return 1; }
 
     SharedBuffer* ring = (SharedBuffer*)mmap(0, sizeof(SharedBuffer), PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
     if (ring == MAP_FAILED) { perror("mmap failed"); return 1; }
 
-    // 2. Open the Binary Log File
-    FILE* fp = fopen("telemetry.alog", "wb"); // 'wb' = Write Binary
+    FILE* fp = fopen("telemetry.alog", "wb");
     if (!fp) { perror("fopen failed"); return 1; }
 
-    uint64_t processed_count = 0;
-    std::cout << "Sidecar: consuming data and writing to disk..." << std::endl;
+    // Local buffer to hold data before flushing to disk
+    // This reduces disk I/O calls by factor of 1000
+    std::vector<LogEntry> disk_buffer;
+    disk_buffer.reserve(BATCH_SIZE);
 
-    while (processed_count < 10000) {
+    uint64_t processed_count = 0;
+    std::cout << "Sidecar: Optimized Batching Mode Active..." << std::endl;
+
+    while (processed_count < 1000000) { // Matching the 1M logs from benchmark
         uint64_t current_head = ring->head.load(std::memory_order_relaxed);
         
         if (current_head != ring->tail.load(std::memory_order_acquire)) {
+            // 1. Read from Shared Memory
             LogEntry& entry = ring->entries[current_head];
             
-            // 3. WRITE TO DISK (The Magic Line)
-            // We write the raw bytes of the struct directly to the file
-            fwrite(&entry, sizeof(LogEntry), 1, fp);
+            // 2. Add to local RAM buffer (Super fast)
+            disk_buffer.push_back(entry);
+
+            // 3. If buffer is full, FLUSH to disk (The Optimization)
+            if (disk_buffer.size() >= BATCH_SIZE) {
+                fwrite(disk_buffer.data(), sizeof(LogEntry), disk_buffer.size(), fp);
+                disk_buffer.clear();
+            }
 
             processed_count++;
             ring->head.store((current_head + 1) % RING_SIZE, std::memory_order_release);
+        } else {
+             // Optional: If idle, reduce CPU usage
+            // std::this_thread::yield(); 
         }
     }
 
-    std::cout << "Sidecar: Saved " << processed_count << " logs to telemetry.alog" << std::endl;
+    // Flush any remaining logs
+    if (!disk_buffer.empty()) {
+        fwrite(disk_buffer.data(), sizeof(LogEntry), disk_buffer.size(), fp);
+    }
+
+    std::cout << "Sidecar: Finished. Total processed: " << processed_count << std::endl;
     
-    fclose(fp); // Close file
-    shm_unlink(SHM_NAME); // Remove memory
+    fclose(fp);
+    shm_unlink(SHM_NAME);
     return 0;
 }
