@@ -4,3 +4,4 @@ src/producer
 *.alog
 __pycache__/
 *.o
+build/
