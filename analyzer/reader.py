@@ -1,55 +1,126 @@
-import struct
+"""
+AeroLog binary log decoder.
+
+Usage:
+    python3 reader.py [path/to/telemetry.alog]
+
+Decodes the binary .alog format written by the C++ consumer and prints a
+summary table to stdout.
+
+Binary format per entry (56 bytes, little-endian):
+    Q   8   timestamp_ns
+    8s  8   symbol (null-padded)
+    d   8   bid
+    d   8   ask
+    d   8   last_price
+    I   4   volume
+    B   1   event_type  (0=TRADE, 1=QUOTE, 2=CANCEL)
+    3x  3   padding
+    Q   8   write_latency_ns
+"""
+
 import os
+import struct
+import sys
 
-# Configuration
-# This must match the location where your C++ Consumer saves the file
-LOG_FILE = "../src/telemetry.alog" 
+# ---------------------------------------------------------------------------
+# ABI constants — must match LogEntry in src/shm_shared.hpp
+# ---------------------------------------------------------------------------
+ENTRY_FMT  = struct.Struct("=Q8sdddIB3xQ")
+ENTRY_SIZE = ENTRY_FMT.size          # 56 bytes
+assert ENTRY_SIZE == 56, f"Unexpected entry size: {ENTRY_SIZE}"
 
-def read_binary_logs(filename):
-    if not os.path.exists(filename):
-        print(f"Error: Could not find {filename}")
-        print("Did you run the C++ Consumer? (It creates the file)")
-        return
+EVENT_NAMES = {0: "TRADE", 1: "QUOTE", 2: "CANCEL"}
 
-    file_size = os.path.getsize(filename)
-    print(f"Found log file: {filename} ({file_size} bytes)")
 
-    # --- The Struct Format ---
-    # Q = unsigned long long (8 bytes) -> timestamp
-    # i = integer (4 bytes)            -> event_id
-    # d = double (8 bytes)             -> value
-    # The compiler adds 4 bytes of padding after 'i' to align 'd'
-    # So the total size is usually 24 bytes per entry.
-    struct_fmt = 'Qid' 
-    entry_size = struct.calcsize(struct_fmt) 
+def decode_entry(raw: bytes) -> dict:
+    ts, sym_b, bid, ask, last, vol, etype, lat = ENTRY_FMT.unpack(raw)
+    return {
+        "timestamp_ns":      ts,
+        "symbol":            sym_b.rstrip(b"\x00").decode("ascii", errors="replace"),
+        "bid":               bid,
+        "ask":               ask,
+        "last_price":        last,
+        "volume":            vol,
+        "event_type":        EVENT_NAMES.get(etype, f"UNK({etype})"),
+        "write_latency_ns":  lat,
+    }
 
-    print(f"Reading logs (Expect {entry_size} bytes per entry)...")
 
-    with open(filename, "rb") as f:
-        count = 0
+def read_log(path: str, preview: int = 5) -> list[dict]:
+    if not os.path.exists(path):
+        print(f"Error: file not found — {path}")
+        print("  Did you run the C++ consumer?  (it creates the .alog file)")
+        sys.exit(1)
+
+    size = os.path.getsize(path)
+    total = size // ENTRY_SIZE
+    print(f"Log file  : {path}")
+    print(f"File size : {size:,} bytes  ({total:,} entries × {ENTRY_SIZE} bytes)")
+    print()
+
+    entries = []
+    with open(path, "rb") as f:
         while True:
-            # Read exactly one struct's worth of bytes
-            chunk = f.read(entry_size)
-            
-            # If we hit the end of the file, stop
-            if not chunk:
+            raw = f.read(ENTRY_SIZE)
+            if len(raw) < ENTRY_SIZE:
                 break
-            
-            try:
-                # Unpack the binary data into variables
-                timestamp, event_id, value = struct.unpack(struct_fmt, chunk)
-                
-                # Print the first 5 and last 5 logs to verify
-                if count < 5 or count >= 9995:
-                    print(f"Row {count}: ID={event_id} | Value={value:.2f} | Time={timestamp}")
-                
-                count += 1
-                
-            except struct.error:
-                print("Error: Corrupted or incomplete log entry.")
-                break
+            entries.append(decode_entry(raw))
 
-    print(f"\n[Success] Analyzed {count} total logs.")
+    if not entries:
+        print("No entries found.")
+        return entries
+
+    # Print header + first/last preview rows
+    hdr = f"{'#':>7}  {'Symbol':<8}  {'Type':<7}  {'Last':>10}  "
+    hdr += f"{'Bid':>10}  {'Ask':>10}  {'Volume':>8}  {'Latency(ns)':>12}"
+    sep = "─" * len(hdr)
+
+    print(f"{'First ' + str(preview) + ' entries':}")
+    print(sep)
+    print(hdr)
+    print(sep)
+    for i, e in enumerate(entries[:preview]):
+        _print_row(i, e)
+
+    if len(entries) > preview * 2:
+        print(f"  ... ({len(entries) - preview * 2} entries omitted) ...")
+
+    print(sep)
+    print(f"Last {preview} entries")
+    print(sep)
+    print(hdr)
+    print(sep)
+    for i, e in enumerate(entries[-preview:]):
+        _print_row(len(entries) - preview + i, e)
+    print(sep)
+
+    # Latency summary
+    lats = [e["write_latency_ns"] for e in entries if e["write_latency_ns"] > 0]
+    if lats:
+        lats.sort()
+        n = len(lats)
+        def pct(p):
+            return lats[int(p / 100 * n)]
+        print(f"\nWrite latency ({n} entries with data):")
+        print(f"  P50  : {pct(50):>8,} ns")
+        print(f"  P90  : {pct(90):>8,} ns")
+        print(f"  P99  : {pct(99):>8,} ns")
+        print(f"  P99.9: {pct(99.9):>8,} ns")
+        print(f"  Max  : {lats[-1]:>8,} ns")
+
+    print(f"\n[Done] {len(entries):,} total entries decoded.")
+    return entries
+
+
+def _print_row(idx: int, e: dict) -> None:
+    print(
+        f"{idx:>7}  {e['symbol']:<8}  {e['event_type']:<7}  "
+        f"{e['last_price']:>10.4f}  {e['bid']:>10.4f}  {e['ask']:>10.4f}  "
+        f"{e['volume']:>8}  {e['write_latency_ns']:>12,}"
+    )
+
 
 if __name__ == "__main__":
-    read_binary_logs(LOG_FILE)
+    log_path = sys.argv[1] if len(sys.argv) > 1 else "../src/telemetry.alog"
+    read_log(log_path)

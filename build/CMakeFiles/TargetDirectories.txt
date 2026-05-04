@@ -1,0 +1,11 @@
+/home/binayak/Binayak/AeroLog/build/CMakeFiles/producer.dir
+/home/binayak/Binayak/AeroLog/build/CMakeFiles/consumer.dir
+/home/binayak/Binayak/AeroLog/build/CMakeFiles/latency_test.dir
+/home/binayak/Binayak/AeroLog/build/CMakeFiles/ring_test.dir
+/home/binayak/Binayak/AeroLog/build/CMakeFiles/test.dir
+/home/binayak/Binayak/AeroLog/build/CMakeFiles/edit_cache.dir
+/home/binayak/Binayak/AeroLog/build/CMakeFiles/rebuild_cache.dir
+/home/binayak/Binayak/AeroLog/build/CMakeFiles/list_install_components.dir
+/home/binayak/Binayak/AeroLog/build/CMakeFiles/install.dir
+/home/binayak/Binayak/AeroLog/build/CMakeFiles/install/local.dir
+/home/binayak/Binayak/AeroLog/build/CMakeFiles/install/strip.dir
