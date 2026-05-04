@@ -26,7 +26,7 @@ import sys
 # ---------------------------------------------------------------------------
 # ABI constants — must match LogEntry in src/shm_shared.hpp
 # ---------------------------------------------------------------------------
-ENTRY_FMT  = struct.Struct("=Q8sdddIB3xQ")
+ENTRY_FMT = struct.Struct("=Q8sdddIB3xQ")
 ENTRY_SIZE = ENTRY_FMT.size          # 56 bytes
 assert ENTRY_SIZE == 56, f"Unexpected entry size: {ENTRY_SIZE}"
 
@@ -100,6 +100,7 @@ def read_log(path: str, preview: int = 5) -> list[dict]:
     if lats:
         lats.sort()
         n = len(lats)
+
         def pct(p):
             return lats[int(p / 100 * n)]
         print(f"\nWrite latency ({n} entries with data):")

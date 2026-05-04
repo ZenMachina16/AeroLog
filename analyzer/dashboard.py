@@ -31,7 +31,7 @@ except ImportError:
 # ---------------------------------------------------------------------------
 # ABI constants — must match LogEntry in src/shm_shared.hpp
 # ---------------------------------------------------------------------------
-ENTRY_FMT  = struct.Struct("=Q8sdddIB3xQ")
+ENTRY_FMT = struct.Struct("=Q8sdddIB3xQ")
 ENTRY_SIZE = ENTRY_FMT.size   # 56 bytes
 assert ENTRY_SIZE == 56
 
@@ -85,11 +85,11 @@ def build_dashboard(entries: list[dict], output_path: str) -> None:
         for e in entries
     ]
 
-    bids    = [e["bid"]    for e in entries]
-    asks    = [e["ask"]    for e in entries]
-    lasts   = [e["last"]   for e in entries]
+    bids = [e["bid"] for e in entries]
+    asks = [e["ask"] for e in entries]
+    lasts = [e["last"] for e in entries]
     volumes = [e["volume"] for e in entries]
-    lats    = [e["lat_ns"] for e in entries if e["lat_ns"] > 0]
+    lats = [e["lat_ns"] for e in entries if e["lat_ns"] > 0]
 
     # ── Figure layout: 3 rows ────────────────────────────────────────────────
     fig = make_subplots(
@@ -188,6 +188,7 @@ def build_dashboard(entries: list[dict], output_path: str) -> None:
     if lats:
         lats_sorted = sorted(lats)
         n = len(lats_sorted)
+
         def pct(p):
             return lats_sorted[int(p / 100 * n)]
         print(f"\nLatency summary ({n:,} events):")

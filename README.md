@@ -1,6 +1,6 @@
 # AeroLog: Zero-Latency HFT Telemetry System
 
-[![Build & Test](https://github.com/yourusername/AeroLog/actions/workflows/ci.yml/badge.svg)](https://github.com/yourusername/AeroLog/actions/workflows/ci.yml)
+[![Build & Test](https://github.com/yourusername/AeroLog/actions/workflows/ci.yml/badge.svg)](https://github.com/ZenMachina16/AeroLog/actions/workflows/ci.yml)
 
 A high-throughput, lock-free IPC logging library for latency-sensitive trading applications.
 
