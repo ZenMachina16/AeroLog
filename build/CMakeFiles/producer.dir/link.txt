@@ -1,1 +1,0 @@
-/usr/bin/c++ -O3 -DNDEBUG CMakeFiles/producer.dir/src/producer.cpp.o -o producer  -lrt 

@@ -1,1 +1,0 @@
-/usr/bin/c++ -O3 -DNDEBUG CMakeFiles/consumer.dir/src/consumer.cpp.o -o consumer  -lrt 
